@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>斗兽棋 · 人机对战</title>
+<meta name="description" content="经典斗兽棋（动物棋），单文件网页版，支持三档难度的人机对战。">
+<meta property="og:title" content="斗兽棋 · 人机对战">
+<meta property="og:description" content="象狮虎豹狼狗猫鼠，三档难度的人机对战，打开就能玩。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%81%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a0c12; --fg:#e9edf6; --muted:#8d97ad; --line:rgba(255,255,255,.10);
+  --red:#ff6b6b; --black:#6ea8ff; --gold:#f0c987;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  background:
+    radial-gradient(70% 55% at 15% 0%, rgba(255,107,107,.14), transparent 65%),
+    radial-gradient(65% 55% at 85% 5%, rgba(110,168,255,.16), transparent 65%),
+    var(--bg);
+  color:var(--fg); font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  display:flex; justify-content:center; padding:22px 16px 40px;
+  -webkit-font-smoothing:antialiased;
+}
+.app{width:min(560px,100%)}
+header{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px}
+h1{margin:0; font-size:1.15rem; letter-spacing:.02em}
+.sub{color:var(--muted); font-size:.78rem}
+.bar{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px}
+select,button{
+  font:inherit; font-size:.85rem; color:var(--fg); background:rgba(255,255,255,.05);
+  border:1px solid var(--line); border-radius:10px; padding:7px 12px; cursor:pointer;
+}
+button:hover,select:hover{border-color:rgba(110,168,255,.55)}
+.board{
+  display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(9,1fr);
+  gap:3px; aspect-ratio:7/9; padding:8px; border-radius:18px;
+  background:rgba(255,255,255,.03); border:1px solid var(--line);
+  box-shadow:0 24px 70px rgba(0,0,0,.55);
+  touch-action:manipulation; user-select:none;
+}
+.cell{
+  position:relative; display:grid; place-items:center; border-radius:9px;
+  background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.05);
+  transition:background .15s ease, box-shadow .15s ease;
+}
+.cell.water{
+  background:linear-gradient(180deg, rgba(60,130,246,.30), rgba(30,80,190,.42));
+  border-color:rgba(110,168,255,.30);
+}
+.cell.water::after{
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:repeating-linear-gradient(115deg, rgba(255,255,255,.10) 0 2px, transparent 2px 9px);
+  opacity:.45;
+}
+.cell.trap{ box-shadow:inset 0 0 0 2px rgba(240,201,135,.45); }
+.cell.trap-black{ box-shadow:inset 0 0 0 2px rgba(110,168,255,.40); }
+.cell.den{ background:radial-gradient(circle at 50% 50%, rgba(240,201,135,.30), rgba(240,201,135,.06)); border-color:rgba(240,201,135,.45); }
+.cell.den-black{ background:radial-gradient(circle at 50% 50%, rgba(110,168,255,.28), rgba(110,168,255,.05)); border-color:rgba(110,168,255,.45); }
+.mark{ font-size:.8rem; color:rgba(255,255,255,.55); font-weight:600 }
+.cell.sel{ background:rgba(61,220,151,.22); box-shadow:inset 0 0 0 2px rgba(61,220,151,.75) }
+.cell.last{ box-shadow:inset 0 0 0 2px rgba(255,255,255,.28) }
+.cell.target::before{
+  content:""; position:absolute; width:34%; height:34%; border-radius:50%;
+  background:rgba(61,220,151,.55); box-shadow:0 0 12px rgba(61,220,151,.6);
+}
+.cell.target.capture::before{
+  width:78%; height:78%; background:transparent;
+  border:2px solid rgba(255,107,107,.9); box-shadow:0 0 14px rgba(255,107,107,.55);
+}
+.piece{
+  position:relative; display:grid; place-items:center; width:86%; height:86%; border-radius:50%;
+  font-size:clamp(14px,4.4vw,26px); line-height:1;
+  box-shadow:0 4px 14px rgba(0,0,0,.45), inset 0 -2px 6px rgba(0,0,0,.25);
+}
+.piece.red{ background:linear-gradient(160deg,#ff8a8a,#c22f3f); border:1px solid rgba(255,255,255,.35) }
+.piece.black{ background:linear-gradient(160deg,#8fb8ff,#2f56c2); border:1px solid rgba(255,255,255,.35) }
+.rk{
+  position:absolute; right:-3px; bottom:-3px; min-width:14px; height:14px; padding:0 3px;
+  display:grid; place-items:center; border-radius:7px; font-size:9px; font-weight:700;
+  background:#0d1018; color:#cfd6e6; border:1px solid rgba(255,255,255,.18);
+}
+.status{ margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:24px }
+#status{ font-size:.92rem; color:var(--fg) }
+#log{ margin:8px 0 0; color:var(--muted); font-size:.76rem; line-height:1.5; word-break:break-all }
+details{ margin-top:14px; color:var(--muted); font-size:.8rem; line-height:1.6 }
+summary{ cursor:pointer; color:var(--fg); font-size:.85rem }
+details ul{ padding-left:18px; margin:8px 0 0 }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>斗兽棋 · 人机对战</h1>
+    <span class="sub">红方是你 · 先手</span>
+  </header>
+  <div class="bar">
+    <select id="level" aria-label="难度">
+      <option value="0">难度：简单</option>
+      <option value="1" selected>难度：普通</option>
+      <option value="2">难度：困难</option>
+    </select>
+    <button id="btnNew" type="button">新开一局</button>
+    <button id="btnUndo" type="button">悔棋</button>
+  </div>
+  <div class="board" id="board" role="grid" aria-label="斗兽棋棋盘"></div>
+  <div class="status"><span id="status">轮到你（红方）出招</span></div>
+  <p id="log">尚未落子</p>
+  <details>
+    <summary>规则速览</summary>
+    <ul>
+      <li>棋子沿横竖走一格，不能走入自己的兽穴；进入对方兽穴即获胜。</li>
+      <li>等级：象 &gt; 狮 &gt; 虎 &gt; 豹 &gt; 狼 &gt; 狗 &gt; 猫 &gt; 鼠，同级可以互吃。</li>
+      <li>鼠可以吃象；象不能吃鼠。</li>
+      <li>只有鼠能下水；水中的鼠只能被水中的鼠吃掉，也不能吃岸上的棋子；鼠离水的那一步不能吃子。</li>
+      <li>狮、虎可以横竖跳过小河，但河里有鼠挡路时不能跳。</li>
+      <li>棋子站在对方陷阱里时等级视为 0，任何棋子都能吃掉它。</li>
+      <li>一方无法移动任何棋子即判负；连续 80 步没有吃子时判和。</li>
+    </ul>
+  </details>
+</div>
+<script>
+var COLS = 7, ROWS = 9, N = 63;
+var RED = 0, BLACK = 1;
+var RAT = 1, CAT = 2, DOG = 3, WOLF = 4, LEOPARD = 5, TIGER = 6, LION = 7, ELEPHANT = 8;
+
+var WATER = new Int8Array(N);
+var TRAP = new Int8Array(N);   // 0 none, 1 red trap, 2 black trap
+var DEN = new Int8Array(N);    // 0 none, 1 red den, 2 black den
+
+function idx(x, y) { return y * COLS + x; }
+
+(function initTerrain() {
+  for (var y = 3; y <= 5; y++) for (var x = 0; x < COLS; x++) if (x === 1 || x === 2 || x === 4 || x === 5) WATER[idx(x, y)] = 1;
+  DEN[idx(3, 0)] = 2; DEN[idx(3, 8)] = 1;
+  var t = [[2, 0, 2], [4, 0, 2], [3, 1, 2], [2, 8, 1], [4, 8, 1], [3, 7, 1]];
+  for (var i = 0; i < t.length; i++) TRAP[idx(t[i][0], t[i][1])] = t[i][2];
+})();
+
+function sideOf(v) { return v >= 10 ? 1 : 0; }
+function rankOf(v) { return v >= 10 ? v - 10 : v; }
+function other(side) { return side ? 0 : 1; }
+
+function initBoard() {
+  var b = new Int8Array(N);
+  b[idx(0, 0)] = 10 + LION; b[idx(6, 0)] = 10 + TIGER;
+  b[idx(1, 1)] = 10 + DOG; b[idx(5, 1)] = 10 + CAT;
+  b[idx(0, 2)] = 10 + RAT; b[idx(2, 2)] = 10 + LEOPARD; b[idx(4, 2)] = 10 + WOLF; b[idx(6, 2)] = 10 + ELEPHANT;
+  b[idx(6, 8)] = LION; b[idx(0, 8)] = TIGER;
+  b[idx(5, 7)] = CAT; b[idx(1, 7)] = DOG;
+  b[idx(6, 6)] = RAT; b[idx(4, 6)] = LEOPARD; b[idx(2, 6)] = WOLF; b[idx(0, 6)] = ELEPHANT;
+  return b;
+}
+
+function canCaptureAt(b, from, to, side) {
+  var t = b[to];
+  if (!t) return true;
+  if (sideOf(t) === side) return false;
+  var aWater = WATER[from] === 1, tWater = WATER[to] === 1;
+  if (aWater && !tWater) return false;
+  if (!aWater && tWater) return false;
+  if (TRAP[to] && TRAP[to] - 1 !== sideOf(t)) return true;
+  var aRank = rankOf(b[from]), tRank = rankOf(t);
+  if (aRank === RAT && tRank === ELEPHANT) return true;
+  if (aRank === ELEPHANT && tRank === RAT) return false;
+  return aRank >= tRank;
+}
+
+var DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
+function genMoves(b, side, out) {
+  out = out || [];
+  for (var i = 0; i < N; i++) {
+    var v = b[i];
+    if (!v || sideOf(v) !== side) continue;
+    var x = i % COLS, y = (i - x) / COLS;
+    var rank = rankOf(v);
+    for (var d = 0; d < 4; d++) {
+      var dx = DIRS[d][0], dy = DIRS[d][1];
+      var nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS) {
+        var to = idx(nx, ny);
+        if (DEN[to] !== side + 1 && !(WATER[to] === 1 && rank !== RAT) && canCaptureAt(b, i, to, side)) {
+          out.push((i << 6) | to);
+        }
+      }
+      if (rank === LION || rank === TIGER) {
+        var jx = x + dx, jy = y + dy;
+        if (jx >= 0 && jy >= 0 && jx < COLS && jy < ROWS && WATER[idx(jx, jy)] === 1) {
+          var blocked = false;
+          while (jx >= 0 && jy >= 0 && jx < COLS && jy < ROWS && WATER[idx(jx, jy)] === 1) {
+            var wv = b[idx(jx, jy)];
+            if (wv && rankOf(wv) === RAT) blocked = true;
+            jx += dx; jy += dy;
+          }
+          if (!blocked && jx >= 0 && jy >= 0 && jx < COLS && jy < ROWS) {
+            var jto = idx(jx, jy);
+            if (DEN[jto] !== side + 1 && canCaptureAt(b, i, jto, side)) out.push((i << 6) | jto);
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function applyMove(b, mv) {
+  var from = mv >> 6, to = mv & 63;
+  var nb = b.slice();
+  nb[to] = nb[from];
+  nb[from] = 0;
+  return nb;
+}
+
+function moveWins(mv) { return DEN[mv & 63] !== 0; }
+
+var VAL = [0, 30, 22, 34, 48, 62, 78, 92, 105];
+
+function evaluate(b, side) {
+  var s = 0;
+  for (var i = 0; i < N; i++) {
+    var v = b[i];
+    if (!v) continue;
+    var sd = sideOf(v), r = rankOf(v);
+    var w = VAL[r];
+    var x = i % COLS, y = (i - x) / COLS;
+    var homeY = sd === 0 ? 8 : 0, targetY = sd === 0 ? 0 : 8;
+    var distTarget = Math.abs(x - 3) + Math.abs(y - targetY);
+    var distHome = Math.abs(x - 3) + Math.abs(y - homeY);
+    w += Math.max(0, 7 - distTarget) * 1.7;
+    if (distHome <= 2) w += 5;
+    if (TRAP[i] && TRAP[i] - 1 !== sd) w -= VAL[r] * 0.65;
+    s += sd === side ? w : -w;
+  }
+  return s;
+}
+
+function orderMoves(b, moves) {
+  var scored = [];
+  for (var i = 0; i < moves.length; i++) {
+    var mv = moves[i], to = mv & 63;
+    var victim = b[to] ? VAL[rankOf(b[to])] : 0;
+    var score = victim * 10 + (DEN[to] ? 1000 : 0) - VAL[rankOf(b[mv >> 6])] / 4;
+    scored.push([score, mv]);
+  }
+  scored.sort(function (a, c) { return c[0] - a[0]; });
+  var out = new Array(scored.length);
+  for (var j = 0; j < scored.length; j++) out[j] = scored[j][1];
+  return out;
+}
+
+var nodes = 0, nodeLimit = 400000, deadline = 0;
+
+function search(b, side, depth, alpha, beta, ply) {
+  nodes++;
+  var moves = genMoves(b, side);
+  if (!moves.length) return -9000 + ply;
+  if (depth <= 0) return evaluate(b, side);
+  if (nodes > nodeLimit || (deadline && Date.now() > deadline)) return evaluate(b, side);
+  moves = orderMoves(b, moves);
+  var best = -1e9;
+  for (var i = 0; i < moves.length; i++) {
+    var mv = moves[i], to = mv & 63;
+    var nb = applyMove(b, mv);
+    var sc = DEN[to] === other(side) + 1 ? 9000 - ply : -search(nb, other(side), depth - 1, -beta, -alpha, ply + 1);
+    if (sc > best) best = sc;
+    if (best > alpha) alpha = best;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+
+function rootSearch(b, side, depth) {
+  var moves = orderMoves(b, genMoves(b, side));
+  if (!moves.length) return null;
+  var best = -1e9, bestMove = moves[0];
+  var alpha = -1e9;
+  for (var i = 0; i < moves.length; i++) {
+    if (i > 0 && Date.now() > deadline) break;
+    var mv = moves[i], to = mv & 63;
+    var nb = applyMove(b, mv);
+    var sc = DEN[to] === other(side) + 1 ? 9000 : -search(nb, other(side), depth - 1, -1e9, -alpha, 1);
+    if (sc > best) { best = sc; bestMove = mv; }
+    if (best > alpha) alpha = best;
+  }
+  return bestMove;
+}
+
+function aiMove(b, side, level, budgetMs) {
+  var moves = genMoves(b, side);
+  if (!moves.length) return null;
+  nodes = 0;
+  deadline = Date.now() + (budgetMs || 900);
+  if (level === 0) {
+    if (Math.random() < 0.42) return moves[Math.floor(Math.random() * moves.length)];
+    var pick = null, pv = -1e9;
+    for (var i = 0; i < moves.length; i++) {
+      var nb = applyMove(b, moves[i]);
+      var v = -evaluate(nb, other(side)) + Math.random() * 12;
+      if (DEN[moves[i] & 63]) return moves[i];
+      if (v > pv) { pv = v; pick = moves[i]; }
+    }
+    return pick;
+  }
+  if (level === 1) return rootSearch(b, side, 3);
+  var best = null;
+  for (var d = 2; d <= 7; d++) {
+    if (Date.now() > deadline) break;
+    var mv = rootSearch(b, side, d);
+    if (mv === null) break;
+    best = mv;
+    if (Date.now() > deadline) break;
+  }
+  return best;
+}
+
+</script>
+<script>
+(function () {
+  var boardEl = document.getElementById("board");
+  var statusEl = document.getElementById("status");
+  var levelEl = document.getElementById("level");
+  var cells = [];
+  var EMOJI = { 1: "🐀", 2: "🐈", 3: "🐕", 4: "🐺", 5: "🐆", 6: "🐯", 7: "🦁", 8: "🐘" };
+
+  var state;
+
+  function newGame() {
+    state = { board: initBoard(), side: RED, sel: -1, targets: {}, history: [], over: false, thinking: false, last: -1 };
+    render();
+    setStatus("轮到你（红方）出招");
+  }
+
+  function setStatus(t) { statusEl.textContent = t; }
+
+  function build() {
+    boardEl.innerHTML = "";
+    cells = [];
+    for (var i = 0; i < N; i++) {
+      var c = document.createElement("div");
+      var cls = "cell";
+      if (WATER[i]) cls += " water";
+      if (TRAP[i] === 1) cls += " trap trap-red";
+      if (TRAP[i] === 2) cls += " trap trap-black";
+      if (DEN[i] === 1) cls += " den den-red";
+      if (DEN[i] === 2) cls += " den den-black";
+      c.className = cls;
+      c.setAttribute("data-i", String(i));
+      c.addEventListener("click", onClick);
+      boardEl.appendChild(c);
+      cells.push(c);
+    }
+  }
+
+  function render() {
+    for (var i = 0; i < N; i++) {
+      var c = cells[i];
+      var v = state.board[i];
+      var html = "";
+      if (!v) {
+        if (DEN[i]) html = '<span class="mark">穴</span>';
+        else if (TRAP[i]) html = '<span class="mark">陷</span>';
+      } else {
+        var r = rankOf(v), sd = sideOf(v);
+        html = '<span class="piece ' + (sd ? "black" : "red") + '"><span class="face">' + EMOJI[r] + '</span><span class="rk">' + r + '</span></span>';
+      }
+      c.innerHTML = html;
+      var isSel = i === state.sel;
+      var isTarget = !!state.targets[i];
+      var isLast = state.last === i;
+      c.className = baseClass(i) + (isSel ? " sel" : "") + (isTarget ? " target" : "") + (isLast ? " last" : "");
+      if (isTarget && state.board[i]) c.classList.add("capture");
+    }
+    renderMoveList();
+  }
+
+  function baseClass(i) {
+    var cls = "cell";
+    if (WATER[i]) cls += " water";
+    if (TRAP[i] === 1) cls += " trap trap-red";
+    if (TRAP[i] === 2) cls += " trap trap-black";
+    if (DEN[i] === 1) cls += " den den-red";
+    if (DEN[i] === 2) cls += " den den-black";
+    return cls;
+  }
+
+  function renderMoveList() {
+    var log = document.getElementById("log");
+    if (!state.history.length) { log.textContent = "尚未落子"; return; }
+    var parts = [];
+    for (var i = 0; i < state.history.length; i++) {
+      var h = state.history[i];
+      parts.push((h.side === RED ? "红 " : "黑 ") + h.text);
+    }
+    log.textContent = parts.join(" · ");
+  }
+
+  function describe(board, from, to) {
+    var v = board[from], cap = board[to];
+    var name = ["", "鼠", "猫", "狗", "狼", "豹", "虎", "狮", "象"];
+    var s = name[rankOf(v)] + " " + coord(from) + "→" + coord(to);
+    if (cap) s += " 吃" + name[rankOf(cap)];
+    return s;
+  }
+
+  function coord(i) {
+    var x = i % COLS, y = (i - x) / COLS;
+    return "ABCDEFG".charAt(x) + String(y + 1);
+  }
+
+  function onClick(e) {
+    var i = parseInt(e.currentTarget.getAttribute("data-i"), 10);
+    if (state.over || state.thinking || state.side !== RED) return;
+    if (state.targets[i]) { playMove(state.sel, i); return; }
+    var v = state.board[i];
+    if (v && sideOf(v) === RED) {
+      state.sel = i;
+      state.targets = {};
+      var mv = genMoves(state.board, RED);
+      for (var k = 0; k < mv.length; k++) if ((mv[k] >> 6) === i) state.targets[mv[k] & 63] = true;
+      render();
+    } else {
+      state.sel = -1; state.targets = {}; render();
+    }
+  }
+
+  function playMove(from, to) {
+    var board = state.board;
+    var text = describe(board, from, to);
+    var mv = (from << 6) | to;
+    var next = applyMove(board, mv);
+    state.history.push({ side: state.side, move: mv, prevBoard: board, text: text, captured: !!board[to] });
+    state.board = next;
+    state.sel = -1; state.targets = {}; state.last = to;
+    state.side = other(state.side);
+    render();
+    if (checkEnd(mv)) return;
+    if (state.side === BLACK) aiTurn();
+    else setStatus("轮到你（红方）出招");
+  }
+
+  function quietPlies() {
+    var n = 0;
+    for (var i = state.history.length - 1; i >= 0; i--) {
+      if (state.history[i].captured) break;
+      n++;
+    }
+    return n;
+  }
+
+  function checkEnd(mv) {
+    var to = mv ? (mv & 63) : -1;
+    var winner = -1;
+    if (to >= 0 && DEN[to] === 1) winner = BLACK;
+    else if (to >= 0 && DEN[to] === 2) winner = RED;
+    else {
+      var moves = genMoves(state.board, state.side);
+      if (!moves.length) winner = other(state.side);
+      else if (quietPlies() >= 80) {
+        state.over = true;
+        setStatus("和棋 · 连续 80 步无吃子");
+        return true;
+      }
+    }
+    if (winner === -1) return false;
+    state.over = true;
+    setStatus(winner === RED ? "你赢了 🎉" : "你输了 · 再来一局？");
+    return true;
+  }
+
+  function aiTurn() {
+    state.thinking = true;
+    setStatus("电脑思考中…");
+    var level = parseInt(levelEl.value, 10);
+    var snapshot = state.board, side = state.side;
+    setTimeout(function () {
+      var mv = aiMove(snapshot, side, level, level === 2 ? 1200 : 400);
+      if (!mv) { state.thinking = false; state.over = true; setStatus("你赢了 🎉 电脑无棋可走"); return; }
+      var from = mv >> 6, to = mv & 63;
+      var text = describe(snapshot, from, to);
+      state.history.push({ side: state.side, move: mv, prevBoard: state.board, text: text, captured: !!snapshot[to] });
+      state.board = applyMove(state.board, mv);
+      state.last = to;
+      state.side = other(state.side);
+      state.thinking = false;
+      render();
+      if (checkEnd(mv)) return;
+      setStatus("轮到你（红方）出招");
+    }, 160);
+  }
+
+  function undo() {
+    if (state.thinking) return;
+    var steps = 0;
+    while (state.history.length && steps < 2) {
+      var h = state.history.pop();
+      state.board = h.prevBoard;
+      state.side = h.side;
+      steps++;
+      if (h.side === RED && steps === 1) break;
+    }
+    state.over = false; state.sel = -1; state.targets = {}; state.last = -1;
+    render();
+    setStatus("轮到你（红方）出招");
+  }
+
+  document.getElementById("btnNew").addEventListener("click", newGame);
+  document.getElementById("btnUndo").addEventListener("click", undo);
+  levelEl.addEventListener("change", function () {
+    var n = ["简单", "普通", "困难"][parseInt(levelEl.value, 10)];
+    setStatus("难度已切换为" + n);
+  });
+
+  build();
+  newGame();
+})();
+
+</script>
+</body>
+</html>
